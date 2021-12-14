@@ -1,0 +1,651 @@
+---
+title: "Logistic linear regression"
+author: "Arash Hatamirad, ahatamirad@gmail.com"
+date: "9/1/2021"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#knitr::opts_knit$set(root.dir = "C:/Users/Sanaz/Documents/All_MSDA_Projects and Sources/R Ptojects/Algorithm I/HW04/Arashutsa-AlgorithmI-HW4")
+
+# Install required packages
+
+# install.packages("MASS")
+# install.packages("fBasics")
+# install.packages("moments")
+# install.packages("dplyr")
+# install.packages("car")
+#install.packages("DescTools")
+
+
+library(MASS)
+library(fBasics)
+library(moments)
+library(dplyr)
+library(car)
+library(DescTools)
+library(DescTools); 
+library(ResourceSelection)
+
+#Data: heartbpchol.csv for Exercise1, 
+# bupa.csv for Exercise 2, 
+# psych.csv for Exercise3, 
+# cars_new.csv for Exercise 4
+```
+
+
+
+##  Logistic Regression, Stepwise Model Selection with AIC
+
+***
+<font size="3" color=#000080> 
+The liver data set is a subset of the ILPD (Indian Liver Patient Dataset) data set. It contains the first 10 variables described on the UCI Machine Learning Repository and a LiverPatient variable (indicating whether or not the individual is a liver patient. People with active liver disease are coded as LiverPatient=1 and people without disease are coded LiverPatient=0) for adults in the data set. Adults here are defined to be individuals who are at least 18 years of age. It is possible that there will be different significant predictors of being a liver patient for adult females and adult males. 
+</font> 
+
+```{r}
+
+# Read the CSV file
+d1 <- read.csv("liver.csv") 
+
+# Check data format
+#str(d1)
+
+```
+
+### Question (a): 
+
+<font size="3" color=#000080> 
+We want to only for females in the data set, find and specify the best set of predictors via stepwise selection with AIC criteria for a logistic regression model predicting whether a female is a liver patient.  
+
+</font>
+
+### Answer -:  
+
+```{r}
+# Filter Gender for Female and Male
+
+d1.female <- d1[which(d1$Gender=="Female"), ]
+d1.male <- d1[which(d1$Gender=="Male"), ]
+
+```
+
+
+<font size="4" color="red">     
+Step 1)  
+</font>  
+
+## Female   
+
+#### Run full and null models:
+
+
+
+```{r}
+
+glm.female.full <- glm(LiverPatient ~ Age+TB+DB+Alkphos+Alamine+Aspartate+TP+ALB , data=d1.female, family = "binomial")
+glm.female.null <- glm(LiverPatient ~ 1 , data=d1.female, family = "binomial")
+
+#summary(glm.female.full)
+
+```
+
+<font size="4" color="red">     
+Step 2)  
+</font>  
+
+
+#### Run Stepwise with AIC  
+
+
+
+```{r}
+e1.step.model.AIC <- step(glm.female.null,scope = list(upper=glm.female.full), direction="both",test="Chisq", trace = F)
+summary(e1.step.model.AIC)
+
+```
+   
+    
+<font size="4" color="red">     
+Conclusion:   
+</font> 
+
+- The final model (for female only) is:  
+  
+  Log(LiverPatient) = -0.32480 + 0.94479 * DB + 0.01106 * Aspartate  
+  
+- All predictors are significant, although we know that out final model with AIC may include the insignificant variables.     
+
+***
+  
+ 
+### Question (b): 
+
+<font size="3" color=#000080>
+Comment on the significance of parameter estimates under significance level alpha=0.1, what Hosmer-Lemeshow’s test tells us about goodness of fit, and point out any issues with diagnostics by checking residual plots and cook’s distance plot (with cut-off 0.25).  
+</font> 
+
+
+    
+### Answer -:  
+    
+Based on P-Values on part (a), since alpha=0.1, thus:   
+- DB is significant  
+- Aspartate is significant  
+
+    
+
+    
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+    
+#### Calculate Goodness-of-fit  
+
+- H0: Model is Adequate (Fits Well)  
+- H1: Model is not Adequate (Not fits well)  
+
+```{r}
+
+## Hosmer Lemeshow test
+
+hoslem.test(e1.step.model.AIC$y, fitted(e1.step.model.AIC), g=10)  
+
+```
+
+
+Based on P-Value, since alpha level=0.1, and P-Value > 0.1, thus this is our conclusion:  
+
+- We don't have any evidence to reject the Null, thus Model is Adequate and fits well.  
+
+
+<font size="4" color="red">     
+Step 2)   
+</font>
+
+
+#### Run Diagnistics, Residuals plots    
+
+
+We will use both Deviance and Person methods:  
+
+```{r}
+e1.res.deviance <-residuals(e1.step.model.AIC, type = "deviance")
+e1.res.pearson <-residuals(e1.step.model.AIC, type = "pearson")
+
+e1.std.res.deviance <-residuals(e1.step.model.AIC, type = "deviance")/sqrt(1 - hatvalues(e1.step.model.AIC)) # standardized deviance residuals
+e1.std.res.pearson <-residuals(e1.step.model.AIC, type = "pearson")/sqrt(1 - hatvalues(e1.step.model.AIC)) # standardized pearson residuals
+
+```
+
+Show Plots:   
+
+```{r}
+dev.new(width = 1000, height = 1000)
+par(mfrow=c(1,2))
+plot(e1.std.res.deviance[e1.step.model.AIC$model$LiverPatient==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. deviance residuals", xlab = "ID")
+points(e1.std.res.deviance[e1.step.model.AIC$model$LiverPatient==1], col = "blue")
+
+plot(e1.std.res.pearson[e1.step.model.AIC$model$LiverPatient==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. Pearson residuals", xlab = "ID")
+points(e1.std.res.pearson[e1.step.model.AIC$model$LiverPatient==1], col = "blue")
+
+```
+
+
+- Since in std. residuals plot, we can not find any pattern and all values (0/1) are in range [-2,2], thus the assumption is valid.  
+
+
+<font size="4" color="red">     
+Step 3)   
+</font>
+
+
+#### Run Diagnistics, Influence dianostics, cook's distance   
+
+As an assumption, cut-of = 0.25  
+
+```{r}
+# visual inspection
+
+dev.new(width = 1000, height = 1000)
+plot(e1.step.model.AIC, which = 4, id.n = 5) 
+
+```
+
+- Find all pints > cut-off  
+
+```{r}
+# which observation has cook's d larger than 0.25 ?
+e1.inf.id=which(cooks.distance(e1.step.model.AIC) > 0.25)
+e1.inf.id
+```
+
+- There is not any influential points with larger value than 0.25, so no need to eliminate any values.   
+
+
+<font size="4" color="red">     
+Conclusion    
+</font>
+
+ 
+- Based on P-Value in Goodness-of-fit: Model is Adequate and fits well.     
+- Based on Diagnostics (Std. Residuals plot): Assumption is valid.  
+- Based on Diagnostics (Cook's distance): There is no influential point (larger than 0.25)  
+
+***  
+
+### Question (c): 
+
+
+<font size="3" color=#000080>
+Interpret relationships between predictors in the final model and the odds of an adult female being a liver patient. (based on estimated Odds Ratio).   
+</font>
+
+### Answer -:  
+
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+#### Calcualte Odds Ratio  
+
+
+```{r}
+## odds ratios 
+
+e1.OR <- exp(e1.step.model.AIC$coefficients)
+round(e1.OR, 3)
+```
+
+
+Based on previous part, our final model is:  
+
+  Log(LiverPatient) = -0.32480 + 0.94479 * DB + 0.01106 * Aspartate  
+
+
+<font size="4" color="red">     
+Conclusion:    
+</font>
+
+- Since DB and Aspartate are continuous variables, thus we have Multiplicative change.  
+
+- OR(DB) = exp(0.94479) > 1  
+  Thus, there exist positive relationship (increase) and high probability chance for having event,   
+  it means one unit increasing in "DB" will cause multiple of exp(0.94479) change in LiverPatient.   
+  
+- OR(Aspartate) = exp(0.01106) = 1 (Almost is equal 1)   
+  Thus, there is no Aspartate effect, the odds are same and equal probability chance.     
+
+
+In the other word, in female patients increasing the "DB" will cause more chance of LiverPatient.   
+
+
+*** 
+
+### Male 
+
+<font size="3" color=#000080>
+Repeat exercise 1 for males. In addition to the previous questions, also d) comment on how the models for adult females and adult males differ. Use significance level alpha=0.1 
+</font>  
+
+
+### Question (a): 
+
+<font size="3" color=#000080>
+
+For only Males in the data set, find and specify the best set of predictors via stepwise selection with AIC criteria for a logistic regression model predicting whether a male is a liver patient.  
+</font> 
+
+
+
+### Answer -:
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+#### Run full and null model  
+
+
+
+```{r warning=FALSE}
+
+glm.male.full <- glm(LiverPatient ~ Age+TB+DB+Alkphos+Alamine+Aspartate+TP+ALB , data=d1.male, family = "binomial")
+glm.male.null <- glm(LiverPatient ~ 1 , data=d1.male, family = "binomial")
+
+#summary(glm.male.full)
+
+```
+
+<font size="4" color="red">     
+Step 2)   
+</font>
+
+#### Run Stepwise with AIC  
+
+```{r warning=FALSE}
+e2.step.model.AIC <- step(glm.male.null,scope = list(upper=glm.male.full), direction="both",test="Chisq", trace = F)
+summary(e2.step.model.AIC)
+
+```
+
+
+<font size="4" color="red">     
+Conclusion    
+</font>
+
+  
+- The final model is:  
+  
+  Log(LiverPatient) = -1.476570 + 0.512503 * DB + 0.016218 * Alamin + 0.020616 * Age + 0.001740 * Alkphos    
+  
+All predictors are significant, although We know that out final model with AIC may include the insignificant variables.  
+
+
+***
+
+
+### Question (b): 
+
+
+<font size="3" color=#000080>
+
+Comment on the significance of parameter estimates under significance level alpha=0.1, what Hosmer-Lemeshow’s test tells us about goodness of fit, and point out any issues with diagnostics by checking residual plots and cook’s distance plot (with cut-off 0.25).  
+</font> 
+
+
+### Answer -:  
+
+
+Based on P-Values on part (a), since alpha=0.1, thus:   
++ DB is significant  
++ Alamine is significant   
++ Age is significant   
++ Alkphos is significant   
+
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+#### Calculate Goodness-of-fit  
+
+- H0: Model is Adequate (Fits Well)  
+- H1: Model is not Adequate (Not fits well)  
+
+```{r}
+
+## Hosmer Lemeshow test
+
+hoslem.test(e2.step.model.AIC$y, fitted(e2.step.model.AIC), g=10)  
+
+```
+
+Based on P-Value, since alpha level=0.1, and P-Value > 0.1, thus this is our conclusion:     
+
+- We don't have any evidence to reject the Null, thus Model is Adequate and fits well.  
+
+
+<font size="4" color="red">     
+Step 2)   
+</font>
+
+#### Run Diagnistics, Residuals plots   
+
+We will use both Deviance and Person methods:  
+
+```{r}
+e2.res.deviance <-residuals(e2.step.model.AIC, type = "deviance")
+e2.res.pearson <-residuals(e2.step.model.AIC, type = "pearson")
+
+e2.std.res.deviance <-residuals(e2.step.model.AIC, type = "deviance")/sqrt(1 - hatvalues(e2.step.model.AIC)) # standardized deviance residuals
+e2.std.res.pearson <-residuals(e2.step.model.AIC, type = "pearson")/sqrt(1 - hatvalues(e2.step.model.AIC)) # standardized pearson residuals
+
+```
+
+Show the plots:  
+
+```{r}
+dev.new(width = 1000, height = 1000)
+par(mfrow=c(1,2))
+plot(e2.std.res.deviance[e2.step.model.AIC$model$LiverPatient==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. deviance residuals", xlab = "ID")
+points(e2.std.res.deviance[e2.step.model.AIC$model$LiverPatient==1], col = "blue")
+
+plot(e2.std.res.pearson[e2.step.model.AIC$model$LiverPatient==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. Pearson residuals", xlab = "ID")
+points(e2.std.res.pearson[e2.step.model.AIC$model$LiverPatient==1], col = "blue")
+
+```
+
+
+- Since in std. residuals plots, we can not find any pattern and also most of data (0/1) are in range [-2,2], thus the assumption is valid.  
+
+<font size="4" color="red">     
+Step 3)   
+</font>
+
+#### Run Diagnistics, Influence dianostics, cook's distance  
+
+As an assumption, cut-of = 0.25  
+
+```{r}
+# visual inspection
+
+dev.new(width = 1000, height = 1000)
+plot(e2.step.model.AIC, which = 4, id.n = 5) 
+
+```
+
+- Find all pints > cut-off  
+
+```{r}
+# which observation has cook's d larger than 0.25 ?
+e2.inf.id=which(cooks.distance(e2.step.model.AIC) > 0.25)
+e2.inf.id
+
+#d1.male[e2.inf.id,]
+
+```
+
+
+- There exist two influential points with larger value than 0.25, so we must eliminate these influential point and fit model again.  
+
+<font size="4" color="red">     
+Step 4)   
+</font>
+
+#### Delete influential points and fit model again  
+
+```{r warning=FALSE}
+## fit model without observation with cook's d larger than 0.25
+
+e2.glm.male.AIC.WO.Cook = glm(LiverPatient ~ DB + Alamine + Age + Alkphos, data =d1.male[-e2.inf.id, ], family = "binomial")
+summary(e2.glm.male.AIC.WO.Cook)
+```
+
+Here is final linear model, after deleting cook's distances:  
+
+ Log(LiverPatient) = -1.902754 + 0.573104 * DB + 0.015850 * Alamin + 0.020418 * Age + 0.003744 * Alkphos   
+ 
+- All predictors in the model is significant.   
+
+
+<font size="4" color="red">     
+Step 5)   
+</font>
+
+#### Calculate Goodness-of-fit (Without Influential points)  
+
+- H0: Model is Adequate (Fits Well)  
+- H1: Model is not Adequate (Not fits well)  
+
+
+```{r}
+
+## Hosmer Lemeshow test
+
+hoslem.test(e2.glm.male.AIC.WO.Cook$y, fitted(e2.glm.male.AIC.WO.Cook), g=10)  
+
+```
+
+
+- Based on P-Value, since alpha level=0.1, and P-Value > 0.1, the model still is Adequate and fits well.  
+
+<font size="4" color="red">     
+Step 6)   
+</font>
+
+#### Run Diagnistics, Residuals plots (Without influential points)    
+
+We will use both Deviance and Person methods:  
+
+```{r}
+e2.res.deviance.wo.cook <-residuals(e2.glm.male.AIC.WO.Cook, type = "deviance")
+e2.res.pearson.wo.cook <-residuals(e2.glm.male.AIC.WO.Cook, type = "pearson")
+
+e2.std.res.deviance.wo.cook <-residuals(e2.glm.male.AIC.WO.Cook, type = "deviance")/sqrt(1 - hatvalues(e2.glm.male.AIC.WO.Cook)) # standardized deviance residuals
+e2.std.res.pearson.wo.cook <-residuals(e2.glm.male.AIC.WO.Cook, type = "pearson")/sqrt(1 - hatvalues(e2.glm.male.AIC.WO.Cook)) # standardized pearson residuals
+
+```
+
+Show the plots:  
+
+```{r}
+dev.new(width = 1000, height = 1000)
+par(mfrow=c(1,2))
+plot(e2.std.res.deviance.wo.cook[e2.glm.male.AIC.WO.Cook$model$LiverPatient==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. deviance residuals", xlab = "ID")
+points(e2.std.res.deviance.wo.cook[e2.glm.male.AIC.WO.Cook$model$LiverPatient==1], col = "blue")
+
+plot(e2.std.res.pearson.wo.cook[e2.glm.male.AIC.WO.Cook$model$LiverPatient==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. Pearson residuals", xlab = "ID")
+points(e2.std.res.pearson.wo.cook[e2.glm.male.AIC.WO.Cook$model$LiverPatient==1], col = "blue")
+
+```
+
+
+- Since in std. residuals plot, we can not find any pattern and also most of data (0/1) are in range [-2,2], thus the assumption is valid.  
+
+
+<font size="4" color="red">     
+Step 7)   
+</font>
+
+#### Run Diagnistics, Influence dianostics, cook's distance (After elimination)  
+
+
+As an assumption, cut-of = 0.25  
+
+```{r}
+# visual inspection
+
+dev.new(width = 1000, height = 1000)
+plot(e2.glm.male.AIC.WO.Cook, which = 4, id.n = 5) 
+
+```
+
+- Find all pints > cut-off  
+
+```{r}
+# which observation has cook's d larger than 0.25 ?
+e2.inf.id=which(cooks.distance(e2.glm.male.AIC.WO.Cook) > 0.25)
+e2.inf.id
+
+```
+
+
+- There is no more influential points with larger value than 0.25.    
+
+
+<font size="4" color="red">     
+Conclusion:    
+</font>
+   
+- Based on P-Value in Goodness-of-fit: Model is Adequate and fits well.      
+- Based on Diagnostics (Std. Residuals plots): Assumption is valid.  
+
+
+***  
+
+
+### Question (c): 
+<font size="3" color=#000080> 
+Interpret relationships between predictors in the final model and the odds of an adult female being a liver patient. (based on estimated Odds Ratio).   
+</font>
+
+### Answer -:  
+
+
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+#### Calculate Odds Ratio  
+
+```{r}
+## odds ratios 
+
+e2.OR <- exp(e2.glm.male.AIC.WO.Cook$coefficients)
+round(e2.OR, 3)
+```
+
+
+Based on previous part, our final model is:  
+  
+- Log(LiverPatient) = -1.902754 + 0.573104 * DB + 0.015850 * Alamin + 0.020418 * Age + 0.003744 * Alkphos   
+  
+  
+Since all predictors are continuous, thus we have Multiplicative change.  
+
+
+- OR(DB) = exp(0.573104) > 1   
+  Thus, there is positive relationship (increase), and high probability chance for having event,    
+  It means one unit increasing in "DB" will cause multiple of exp(0.573104) change in LiverPatient.  
+  
+
+- OR(Alamine) = exp(0.015850) =1 (Almost is equal 1)      
+  Thus, there is no Alamine effect.  
+  
+  
+- OR(Age) = exp(0.020418) = 1 (Almost is equal 1)    
+  Thus, there is no Age effect.  
+
+  
+- OR(Alkphos) = exp(0.003744) = 1 (Almost is equal 1)    
+  Thus, there isno Alkphos effect.  
+  
+  
+
+In the other word, Also in Males patients increasing the "DB" will cause more chance of LiverPatient.  
+  
+
+
+### Question (d): 
+<font size="3" color=#000080> 
+comment on how the models for adult females and adult males differ     
+</font>
+
+
+### Answer -:  
+This is the model for the Female:  
+
+- Log(LiverPatient) = -0.32480 + 0.94479 * DB + 0.01106 * Aspartate  
+
+
+This is the model for the Male:  
+
+- Log(LiverPatient) = -1.902754 + 0.573104 * DB + 0.015850 * Alamin + 0.020418 * Age + 0.003744 * Alkphos    
+  
+
+<font size="4" color="red">     
+Conclusion:     
+</font>   
+
+- Although linear regression models for Male and Female include different variables and the final models are not the same, but in both models, increasing in the "DB" variable will cause more chance of having LiverPatient.  
+
+The reason is other variables (like Aspartate, Alamin, Age, Alkphos) have OR=1 (almost), thus there are no effects.  
+

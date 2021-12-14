@@ -1,0 +1,522 @@
+---
+title: "Logistic linear regression"
+author: "Arash Hatamirad, ahatamirad@gmail.com"
+date: "9/1/2021"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_knit$set(root.dir = "C:/Users/Sanaz/Documents/All_MSDA_Projects and Sources/R Ptojects/Algorithm I/HW04/Arashutsa-AlgorithmI-HW4")
+
+# Install required packages
+
+# install.packages("MASS")
+# install.packages("fBasics")
+# install.packages("moments")
+# install.packages("dplyr")
+# install.packages("car")
+#install.packages("DescTools")
+
+
+library(MASS)
+library(fBasics)
+library(moments)
+library(dplyr)
+library(car)
+library(DescTools)
+library(DescTools); 
+library(ResourceSelection)
+
+#Data: heartbpchol.csv for Exercise1, 
+# bupa.csv for Exercise 2, 
+# psych.csv for Exercise3, 
+# cars_new.csv for Exercise 4
+```
+
+
+
+##  Logistic Regression, Stepwise Model Selection with AIC
+
+
+
+<font size="3" color=#000080> 
+Use the sleep data set which originates from http://lib.stat.cmu.edu/datasets/sleep. maxlife10 is 0 if the species maximum life span is less than 10 years and 1 if its maximum life span is greater than or equal to 10 years. Consider finding the best logistic model for predicting the probability that a species' maximum lifespan will be at least 10 years. Consider all 6 variables as candidates (do not include species) and two index variables of them are categorical in nature. Treat two index variables as categorical variables (e.g. ignore the fact that they are ordinal). Use significance level alpha=0.1    
+</font>
+
+
+```{r}
+d2 <- read.csv("sleep.csv")
+
+#str(d2)
+
+```
+
+## Part I  
+
+
+### Question (a): 
+<font size="3" color=#000080> 
+First find and specify the best set of predictors via stepwise selection with AIC criteria.  
+</font>
+
+### Answer -:
+
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+
+#### Run full and null model  
+
+Change sleepexposureindex & predationindex to categorical variables  
+
+```{r}
+d2$sleepexposureindex <- as.factor(d2$sleepexposureindex)
+d2$predationindex <- as.factor(d2$predationindex)
+
+#str(d2)
+
+```
+
+Now, running the model  
+
+
+```{r}
+e3.glm.sleep.full <- glm(maxlife10 ~ . , data=d2, family = "binomial")
+e3.glm.sleep.null <- glm(maxlife10 ~ 1 , data=d2, family = "binomial")
+
+#summary(glm.sleep.full)
+```
+
+<font size="4" color="red">     
+Step 2)   
+</font>
+
+#### Run Stepwise with AIC  
+
+```{r warning=FALSE}
+e3.step.model.AIC <- step(e3.glm.sleep.null,scope = list(upper=e3.glm.sleep.full), direction="both",test="Chisq", trace = F)
+summary(e3.step.model.AIC)
+
+```
+
+
+***
+
+
+### Question (b): 
+<font size="3" color=#000080> 
+Comment on the significance of parameter estimates, what Hosmer-Lemeshow’s test tells us about 
+goodness of fit, and point out any issues with diagnostics by checking residual plots and cook’s distance plot. Do not remove influential points but just make comments on suspicious observations.   
+</font>
+
+
+### Answer -:  
+
+
+- We know that out final model with AIC can include the insignificant variables, thus in the final model:  
+
+Since alpha = 0.1, thus:  
+
+- brainweight is insignificant   
+- totalsleep is insignificant  
++ sleepexposureindex is significant (At least one level is significant )    
+- predationindex is insignificant (All levels are insignificant)  
+ 
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+#### Calculate Goodness-of-fit  
+
+- H0: Model is Adequate (Fits Well)  
+- H1: Model is not Adequate (Not fits well)  
+
+```{r}
+
+## Hosmer Lemeshow test
+
+hoslem.test(e3.step.model.AIC$y, fitted(e3.step.model.AIC), g=10)  
+
+```
+
+Based on P-Value, since alpha level=0.1, and P-Value > 0.1, thus this is our conclusion:   
+
+- We don't have any evidence to reject the Null, thus Model is Adequate and fits well.  
+
+
+<font size="4" color="red">     
+Step 2)   
+</font>
+
+#### Run Diagnistics, Residuals plots  
+
+We will use both Deviance and Person methods:  
+
+```{r}
+e3.res.deviance <-residuals(e3.step.model.AIC, type = "deviance")
+e3.res.pearson <-residuals(e3.step.model.AIC, type = "pearson")
+
+e3.std.res.deviance <-residuals(e3.step.model.AIC, type = "deviance")/sqrt(1 - hatvalues(e3.step.model.AIC)) # standardized deviance residuals
+e3.std.res.pearson <-residuals(e3.step.model.AIC, type = "pearson")/sqrt(1 - hatvalues(e3.step.model.AIC)) # standardized pearson residuals
+
+```
+
+Show the plots:  
+
+```{r}
+dev.new(width = 1000, height = 1000)
+par(mfrow=c(1,2))
+plot(e3.std.res.deviance[e3.step.model.AIC$model$maxlife10==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. deviance residuals", xlab = "ID")
+points(e3.std.res.deviance[e3.step.model.AIC$model$maxlife10==1], col = "blue")
+
+plot(e3.std.res.pearson[e3.step.model.AIC$model$maxlife10==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. Pearson residuals", xlab = "ID")
+points(e3.std.res.pearson[e3.step.model.AIC$model$maxlife10==1], col = "blue")
+
+```
+
+- Since in std. residuals plot, we can not find any pattern and also most of data (0/1) are in range [-2,2], thus the assumption is valid.  
+
+
+<font size="4" color="red">     
+Step 3)   
+</font>
+
+#### Run Diagnistics, Influence dianostics, cook's distance  
+
+
+```{r}
+# visual inspection
+
+dev.new(width = 1000, height = 1000)
+plot(e3.step.model.AIC, which = 4, id.n = 5) 
+
+```
+
+- Find all pints > cut-off  
+```{r}
+# which observation has cook's d larger than 0.25 ?
+e3.inf.id=which(cooks.distance(e3.step.model.AIC) > 0.25)
+e3.inf.id
+
+```
+
+
+
+- There are two influential points (if cut-off=0.25, same as previous question), we must eliminate them and fit model again (but in this case, We will not do it, as the question)   
+
+<font size="4" color="red">     
+Conclusion:  
+</font>
+
+   
+- Based on P-Value in Goodness-of-fit: Model is Adequate and fits well.  
+- Based on Diagnostics (Std. Residuals plot): Assumption is valid.  
+- Based on Diagnostics (Cook's distance): There are two influential point (It's dependent to cut-off value)  
+
+***  
+
+
+### Question (c): 
+<font size="3" color=#000080> 
+interpret what the model tells us about relationships between the predictors and the odds of a species maximum lifespan being at least 10 years.  
+</font>
+
+
+### Answer -:  
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+#### Calcualte Odds Ratio  
+
+```{r}
+## odds ratios 
+
+e3.OR <- exp(e3.step.model.AIC$coefficients)
+round(e3.OR, 3)
+```
+
+- Based on OR results:  
+ 
+- OR (predationindex2  Vs.  predationindex1) = exp(-2.535e+00) = 0.07926 < 1   
+     ==> odds(Y=1|predationindex = 1) > odds(Y=1|predationindex = 2)   
+     
+- OR (predationindex3  Vs.  predationindex1) = exp(-2.512e+01) = 1.2e-11 < 1   
+     ==> odds(Y=1|predationindex = 1) > odds(Y=1|predationindex = 3)   
+     
+- OR (predationindex4  Vs.  predationindex1) = exp(-1.826e+01) = 1.1e-08 < 1  
+     ==> odds(Y=1|predationindex = 1) > odds(Y=1|predationindex = 4)   
+     
+- OR (predationindex5  Vs.  predationindex1) = exp(-5.264e+01) = 1.3e-23 < 1   
+     ==> odds(Y=1|predationindex = 1) > odds(Y=1|predationindex = 5)   
+     
+- OR (sleepexposureindex2 Vs.sleepexposureindex1) = exp(4.998e+00) = 148.1166 > 1   
+     ==> odds(Y=1|sleepexposureindex = 2) > odds(Y=1|sleepexposureindex = 1)   
+     
+- OR (sleepexposureindex3 Vs.sleepexposureindex1) = exp(3.636e+01) = 6.174e15 > 1   
+     ==> odds(Y=1|sleepexposureindex = 3) > odds(Y=1|sleepexposureindex = 1)   
+     
+- OR (sleepexposureindex4 Vs.sleepexposureindex1) = exp(3.370e+01) = 4.322e14 > 1  
+     ==> odds(Y=1|sleepexposureindex = 4) > odds(Y=1|sleepexposureindex = 1)   
+     
+- OR (sleepexposureindex5 Vs.sleepexposureindex1) = exp(7.341e+01) = 7.613e31 > 1  
+     ==> odds(Y=1|sleepexposureindex = 5) > odds(Y=1|sleepexposureindex = 1)   
+     
+- OR (brainweight) = exp(5.101e-02) = 1.052330 = 1   
+     ==> No brainweight effect     
+     
+- OR (totalsleep) = exp(4.230e-01) = 1.526534 > 1   
+     ==>  chance of having an event will increase 1.5 times with one unit change in totalsleep   
+
+
+So,  
+
+  
+  odds(Y=1|predationindex = 1) > odds(Y=1|predationindex = 2) > odds(Y=1|predationindex = 4) > odds(Y=1|predationindex = 3) > odds(Y=1|predationindex = 5)  
+  &  
+  odds(Y=1|sleepexposureindex = 5) > odds(Y=1|sleepexposureindex = 3) > odds(Y=1|sleepexposureindex = 4) > odds(Y=1|sleepexposureindex = 2) > odds(Y=1|sleepexposureindex = 1)  
+ 
+<font size="4" color="red">     
+Conclusion:     
+</font>
+ 
+- So,
+  The Species with :    
+  predationindex = 1  &  sleepexposureindex = 5  & higher totalsleep   
+  have most chance to maxlife (More than 10 years)  
+  
+  
+    
+
+*** 
+
+
+## Part 2  
+
+<font size="3" color=#000080> 
+The index variables in the data set are ordinal, meaning they are categorical and they have a natural ordering. If we treat an index variable as a continuous variable, this will imply a linear change as the index changes. Repeat Part I by treating two index variables as continuous variables. Use significance level alpha=0.1  
+</font>
+
+
+```{r}
+d3 <- read.csv("sleep.csv")
+
+#str(d3)
+
+```
+
+### Answer -:
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+#### Run full model  
+
+```{r warning=FALSE}
+
+e4.glm.sleep.full <- glm(maxlife10 ~  bodyweight+brainweight+totalsleep+gestationtime + predationindex + sleepexposureindex , data=d3, family = "binomial")
+e4.glm.sleep.null <- glm(maxlife10 ~ 1 , data=d3, family = "binomial")
+
+#summary(e4.glm.sleep.full)
+```
+
+
+<font size="4" color="red">     
+Step 2)   
+</font>
+
+#### Run Stepwise with AIC  
+
+```{r warning=FALSE}
+e4.step.model.AIC <- step(e4.glm.sleep.null,scope = list(upper=e4.glm.sleep.full), direction="both",test="Chisq", trace = F)
+summary(e4.step.model.AIC)
+
+```
+
+***
+
+
+### Question (b): 
+<font size="3" color=#000080> 
+Comment on the significance of parameter estimates, what Hosmer-Lemeshow’s test tells us about 
+goodness of fit, and point out any issues with diagnostics by checking residual plots and cook’s distance plot. Do not remove influential points but just make comments on suspicious observations.  
+</font>
+
+
+### Answer -:  
+
+- We know that out final model with AIC can include the insignificant variables, thus in the final model:  
+
+ Log(maxlife10) = -6.16387 + 0.06018 * brainweight + 0.35985 * totalsleep + 4.42111 * sleepexposureindex - 3.36917 * predationindex  
+
+Since alpha = 0.1, thus:  
+
+ + brainweight is significant  
+ + totalsleep is significant  
+ + sleepexposureindex is significant   
+ + predationindex is significant 
+ 
+ 
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+
+#### Calculate Goodness-of-fit  
+
+- H0: Model is Adequate (Fits Well)  
+- H1: Model is not Adequate (Not fits well)  
+
+```{r}
+
+## Hosmer Lemeshow test
+
+hoslem.test(e4.step.model.AIC$y, fitted(e4.step.model.AIC), g=10)  
+
+```
+
+
+- Based on P-Value, since alpha level=0.1, and P-Value > 0.1, thus this is our conclusion:  
+- We don't reject the Null, thus Model is Adequate and fits well.  
+
+<font size="4" color="red">     
+Step 2)   
+</font>
+
+#### Run Diagnistics, Residuals plot   
+
+We will use both Deviance and Person methods:  
+
+```{r}
+e4.res.deviance <-residuals(e4.step.model.AIC, type = "deviance")
+e4.res.pearson <-residuals(e4.step.model.AIC, type = "pearson")
+
+e4.std.res.deviance <-residuals(e4.step.model.AIC, type = "deviance")/sqrt(1 - hatvalues(e4.step.model.AIC)) # standardized deviance residuals
+e4.std.res.pearson <-residuals(e4.step.model.AIC, type = "pearson")/sqrt(1 - hatvalues(e4.step.model.AIC)) # standardized pearson residuals
+
+```
+
+Show the plots:  
+
+```{r}
+dev.new(width = 1000, height = 1000)
+par(mfrow=c(1,2))
+plot(e4.std.res.deviance[e4.step.model.AIC$model$maxlife10==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. deviance residuals", xlab = "ID")
+points(e4.std.res.deviance[e4.step.model.AIC$model$maxlife10==1], col = "blue")
+
+plot(e4.std.res.pearson[e4.step.model.AIC$model$maxlife10==0], col = "red", ylim = c(-3.5,3.5), ylab = "std. Pearson residuals", xlab = "ID")
+points(e4.std.res.pearson[e4.step.model.AIC$model$maxlife10==1], col = "blue")
+
+```
+
+
+- Since in std. residuals plot, we can not find any pattern and also most of data (0/1) are in range [-2,2], thus the assumption is valid.  
+
+
+<font size="4" color="red">     
+Step 3)   
+</font>
+
+#### Run Diagnistics, Influence dianostics, cook's distance  
+
+
+```{r}
+# visual inspection
+
+dev.new(width = 1000, height = 1000)
+plot(e4.step.model.AIC, which = 4, id.n = 5) 
+
+```
+
+
+- Find all pints > cut-off  
+
+```{r}
+# which observation has cook's d larger than 0.25 ?
+e4.inf.id=which(cooks.distance(e4.step.model.AIC) > 0.25)
+e4.inf.id
+
+```
+
+- There are several cook distances.    
+  If for example we choose a cut-off equal to 0.25 (Same as previous exercise), we will have about 8 cook's distance and would have to eliminate them! (we will not do it because of question)  
+  
+
+<font size="4" color="red">     
+Conclusion     
+</font>
+
+
+- Based on P-Value in Goodness-of-fit: Model is Adequate.    
+- Based on Diagnostics (Std. Residuals plot): Assumption is valid.  
+- Based on Diagnostics (Cook's distance): There are several influential points (It's dependent to cut-off value)  
+
+***  
+
+
+### Question (c): 
+<font size="3" color=#000080> 
+interpret what the model tells us about relationships between the predictors and the odds of a species maximum lifespan being at least 10 years.  
+</font>
+
+
+### Answer -:  
+
+<font size="4" color="red">     
+Step 1)   
+</font>
+
+#### Calcualte Odds Ratio  
+
+```{r}
+## odds ratios 
+
+e4.OR <- exp(e4.step.model.AIC$coefficients)
+round(e4.OR, 3)
+```
+
+
+<font size="4" color="red">     
+Conclusion    
+</font>
+
+Based on previous part, our final model is:  
+  
+ 
+ Log(maxlife10) = -6.16387 + 0.06018 * brainweight + 0.35985 * totalsleep + 4.42111 * sleepexposureindex - 3.36917 * predationindex  
+   
+  
+- Since all predictors are continuous variables, thus we have Multiplicative change.   
+
+- OR(brainweight) = 1 (Almost is equal 1)     
+  Thus, there is no brainweight effect.   
+  
+- OR(totalsleep) =1.433 > 1    
+  Thus, there is positive relationship (increase),   
+  It means one unit increasing in "totalsleep" will cause multiple of 1.433 change in maxlife.      
+
+- OR(sleepexposureindex) = 83.188 > 1       
+  Thus, there is positive relationship (increase),   
+  It means one unit increasing in "sleepexposureindex" will cause multiple of 83.188 change in maxlife.   
+  
+- OR(predationindex) = 0.034 < 1   
+  Thus, there is Negative relationship (Decrease),    
+  It means one unit increasing in "predationindex" will cause multiple of 0.034 change in maxlife.      
+
+
+- In the other word, increasing in the "totalsleep" and "sleepexposureindex" and decreasing in the "predationindex" will cause more chance to maxlife.  
+
+  
+    
+***  
+
